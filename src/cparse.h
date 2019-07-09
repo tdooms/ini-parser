@@ -58,12 +58,12 @@ static std::optional<std::string::const_iterator> skipWhiteSpace(std::string::co
 // require: all memory until end is valid
 
 template<typename T>
-struct temp : std::false_type { };
+struct false_type : std::false_type { };
 
 template<typename T>
 std::optional<T> parse(std::string::const_iterator begin, std::string::const_iterator end) noexcept
 {
-    static_assert(temp<T>::value, "could not find parser for a certain type\n");
+    static_assert(false_type<T>::value, "could not find parser for a certain type\n");
     return {};
 }
 
