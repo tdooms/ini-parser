@@ -23,10 +23,10 @@ namespace dot
 {
     struct short_string
     {
-        short_string(const char *string)
+        short_string(const char* string)
         {
             data = _mm_set1_epi32(0);
-            auto begin = reinterpret_cast<char *>(&data);
+            auto begin = reinterpret_cast<char*>(&data);
             for (auto i = 0; i < 16; i++)
             {
                 if (string[i] == '\0') break;
@@ -40,13 +40,13 @@ namespace dot
             memcpy(&data, begin.base(), static_cast<size_t>(end - begin));
         }
 
-        short_string(const std::string &string)
+        short_string(const std::string& string)
         {
             data = _mm_set1_epi32(0);
             memcpy(&data, begin(string).base(), string.size());
         }
 
-        inline bool operator==(const short_string &rhs) const noexcept
+        inline bool operator==(const short_string& rhs) const noexcept
         {
             auto result = _mm_movemask_epi8(_mm_cmpeq_epi8(data, rhs.data));
             return result == 0x0000ffff;
@@ -65,11 +65,11 @@ namespace dot
         quick_map(){ data.reserve(8); }
 
         template<typename T>
-        [[nodiscard]] const_iterator find(const T &key) const noexcept
+        [[nodiscard]] const_iterator find(const T& key) const noexcept
         {
             static_assert(std::is_convertible<T, short_string>(), "type not convertible to internal string");
             const short_string temp = key;
-            return std::find_if(begin(), end(), [temp](const auto &elem){ return elem.first == temp; });
+            return std::find_if(begin(), end(), [temp](const auto& elem){ return elem.first == temp; });
         }
 
         std::pair<iterator, bool> try_emplace(short_string&& key, Type&& value)
