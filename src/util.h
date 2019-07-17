@@ -9,14 +9,14 @@
 
 
 #pragma once
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio>
+#include <stdlib>
 #include <string>
 #include <optional>
 
 bool isWhiteSpace(char c)
 {
-    return c == ' ' or c == '\t' or c == '\n' or c == '\r';
+    return c == ' ' or c == '\t';
 }
 
 const std::string cparse(const char* path)

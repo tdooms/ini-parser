@@ -60,17 +60,3 @@ bool c = config["section"]["var2"].value_or(true);
 bool d = config["section"]["var3"].has_value();
   ```
 
-## Parsing
-
-I used C libraries to copy the whole text into a buffer to read, we then iterate over it without taking any copies!
-
-## future
-I plan to further optimize/extend this parser and enable std::cout on entries.
-
-There is still an error when GCC compiler optimizations are turned on which a plan to fix as soon as i know what it is.
-
-```bash
-warning: ‘<anonymous>’ may be used uninitialized in this function [-Wmaybe-uninitialized]
-   42 |     return {};
-```
-

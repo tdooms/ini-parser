@@ -37,7 +37,7 @@ public:
             return std::get<T>(var);
         }
 
-        template<uint32_t I = 0>
+        template<size_t I = 0>
         [[nodiscard]] static Variable read([[maybe_unused]] std::string::const_iterator begin, [[maybe_unused]] std::string::const_iterator end)
         {
             if constexpr (I == sizeof...(Types)) throw std::runtime_error("no suitable value could be parsed from : " + std::string(begin, end+1));
@@ -48,16 +48,6 @@ public:
                 return read<I+1>(begin, end);
             }
         }
-
-//        template<uint32_t I = 0>
-//        std::ostream& operator<<(std::ostream& stream)
-//        {
-//            using Variant = std::decay_t<decltype(var)>;
-//            using Type = typename std::tuple_element<I, typename std::tuple<Types...>>::type;
-//
-//            if constexpr(std::is_same_v<Variant, Type>()) return stream << std::get<Type>(var);
-//            else return operator<<<I+1>(stream);
-//        }
 
     private:
         std::variant<Types...> var;
@@ -79,8 +69,8 @@ template<typename Section>
 class SectionMap
 {
 public:
-    SectionMap(const std::string& path) { read(path); }
-    SectionMap(const char* path) { read(path); }
+    explicit SectionMap(const std::string& path) { read(path); }
+    explicit SectionMap(const char* path) { read(path); }
 
     template<typename T>
     [[nodiscard]] const Section& operator[](const T& key) const
@@ -123,6 +113,10 @@ private:
 
                 if(*current == '#') {}
                 else throw std::runtime_error("whitespace at start of line: " + std::to_string(line));
+            }
+            else if(*current == '\n' or *current == '\r')
+            {
+                skipLine(current, end(data));
             }
             // if there is an active section, every line is an entry
             else if(section != end(map))

@@ -22,9 +22,9 @@ template<typename T>
 struct false_type : std::false_type { };
 
 template<typename T>
-std::optional<T> parse(std::string::const_iterator begin, std::string::const_iterator end) noexcept
+std::optional<T> parse([[maybe_unused]] std::string::const_iterator begin, [[maybe_unused]] std::string::const_iterator end) noexcept
 {
-    // this always throws a runtime error, but we have to trick the compiler because assert(false) doesn't work.
+    // this always throws a compile time error, but we have to trick the compiler because assert(false) doesn't work.
     static_assert(false_type<T>::value, "could not find parser for a certain type, please check if every type has a corresponding parser");
     return {};
 }
