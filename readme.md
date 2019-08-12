@@ -28,6 +28,10 @@ You can also load/write/store very easily
     file << config;
 ```
 
+## future
+
+Better support for iterators
+
 ## Behind the ADT wall
 
 By using type traits we can go very far to make sure almost every type is supported upon querying,
