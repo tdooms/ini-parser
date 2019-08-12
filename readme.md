@@ -1,62 +1,48 @@
-# Quick ini parser
+# Easy ini parser
 
-This is an ini parser focused on speed and the ability to extend it yourself. This parser also has exceptional exception handling.
+This is an ini parser focused on ease of use.
+The goalwas to make the syntax as simple and expressive as possible.
 
-## Speed
+## Features
 
-At the moment every key name can be at most 16 characters long, this improves speed by 10x. I also don't use maps but vectors for improved cache locality stuff.
+Every ini entry can be (long, double, string, vector<long>, vector<double>).
+Every time you query a value, it wil detect which type it must return, 
+this way you don't have to cast everytime you want an unsigned int instead of int.
 
-I will continue to explore further improvements and remove the 16 character limit while keeping performance.
-
-## Extensions
-
-You can add your own types to be parsed. This is done like this:
-* add your own type to the list or make your own
 ```bash 
-using Section = VarMap<std::string, double, int, bool, TYPE>;
-```
-* write your own parser for the type and put it in cparse.h, this is the function skeleton
-```bash 
-template<>
-std::optional<TYPE> parse(std::string::const_iterator begin, std::string::const_iterator end) noexcept {}
+    double a                = config["section"]["var"].value();
+    std::string b           = config["section"]["var1"].value();
+    std::vector<float> c    = config["section"]["var5"].value();
+    bool d                  = config["section"]["var2"].has_value();
+    int e                   = config["section"]["var3"].value_or(3);
+    std::vector<int> f      = config["section"]["var4"].value_or(1,2,3,4);
 ```
 
-Note: When a parser returns a complete value, that value will be used. Define them with care!
+You can also load/write/store very easily
+
+```bash 
+    dot::ini config("test.ini");
+    config["section"]["var0"].write(1., 2.);
+
+    std::ofstream file("test2.ini");
+    file << config;
+```
 
 ## Behind the ADT wall
-An ini file exists of sections with entries in them. Every entry is a std::variant of user-specified types. The core parser will give the user freedom to define these types and call their parse functions.
 
-The biggest problem with allowing the user to give as many types as they want is calling the right parsers in sequence without any overhead. This is done with some recursive template hackery.
+By using type traits we can go very far to make sure almost every type is supported upon querying,
+and everything is done at compile time.
 
-```bash
-template<uint32_t I = 0>  
-static Variable read(std::string::const_iterator begin, std::string::const_iterator end)  
-{  
-  if constexpr (I == sizeof...(Types)) throw std::runtime_error();
-  auto result = parse<typename std::tuple_element<I, typename std::tuple<Types...>>::type>(begin, end);  
-  if(result.has_value()) return result.value();  
-  return read<I+1>(begin, end);  
+You can easily add your own code here to support some strange types.
+Otherwise you can support type trait on your class and make them castable.
+
+```bash 
+template<typename T>
+[[nodiscard]] operator T() const noexcept
+{
+    if      constexpr (std::is_integral_v      <T>) return static_cast<T>(std::get<long>(var));
+    else if constexpr (std::is_floating_point_v<T>) return static_cast<T>(std::get<double>(var));
+    else if constexpr (std::is_convertible_v<T, std::string>) return std::get<std::string>(var);
+    else static_assert(false_type<T>::value, "type not supported");
 }
-  ```
-
-We also need to make implicit conversions for every possible type, so that we can use the [][] operator.
-
-```bash
-template<typename T>  
-operator T() const  
-{  
-  static_assert(std::disjunction<std::is_same<T, Types>...>(), "type not supported");  
-  return std::get<T>(var);  
-}
-  ```
-
-The static assert gives the user a compile time error when they request the wrong type.
-
-All of this gives us a beautiful and simple result.
-
-```bash
-std::string b = config["section"]["var1"].value();  
-bool c = config["section"]["var2"].value_or(true);  
-bool d = config["section"]["var3"].has_value();
-  ```
-
+```

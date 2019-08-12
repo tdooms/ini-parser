@@ -13,7 +13,7 @@
 #include <string>
 #include <optional>
 #include <algorithm>
-#include "util.h"
+#include "parseUtils.h"
 
 // REQUIRE: end > begin
 // REQUIRE: all memory until end is valid
@@ -30,10 +30,10 @@ std::optional<T> parse([[maybe_unused]] std::string::const_iterator begin, [[may
 }
 
 template<>
-std::optional<int> parse(std::string::const_iterator begin, std::string::const_iterator end) noexcept
+std::optional<long> parse(std::string::const_iterator begin, std::string::const_iterator end) noexcept
 {
     bool negative = false;
-    int result = 0;
+    long result = 0;
 
     if(*begin == '+') begin++;
     else if(*begin == '-'){ begin++; negative = true; }
@@ -83,7 +83,7 @@ std::optional<std::string> parse(std::string::const_iterator begin, std::string:
 {
     if(*begin != '\"') return {};
 
-    auto iter = findCharOnLine(begin + 1, end, '\"');
+    auto iter = ParseUtils::findCharOnLine(begin + 1, end, '\"');
     if(iter.has_value()) return std::string(begin+1, iter.value());
     else return {};
 }
@@ -113,13 +113,13 @@ std::optional<std::vector<double>> parse(std::string::const_iterator begin, std:
     {
         // we skip the whitespace before the value
         begin++;
-        const auto start = skipWhiteSpace(begin, end);
+        const auto start = ParseUtils::skipWhiteSpace(begin, end);
         if(start.has_value()) begin = start.value();
         else return {};
 
         // we try to find the end of the value either by finding ',' or ')'
-        auto next = findCharOnLine(begin, end, ',');
-        if(not next.has_value()) next = findCharOnLine(begin, end, ')');
+        auto next = ParseUtils::findCharOnLine(begin, end, ',');
+        if(not next.has_value()) next = ParseUtils::findCharOnLine(begin, end, ')');
         if(not next.has_value()) return {};
         auto valueEnd = next.value();
 
