@@ -260,8 +260,6 @@ public:
         else static_assert("vector type not supported");
     }
 
-    [[nodiscard]] const auto& getVariant() const noexcept { return var; }
-
 private:
     std::variant<std::monostate, double, long, std::string, std::vector<double>, std::vector<long>> var;
 };
@@ -277,10 +275,12 @@ public:
 
     [[nodiscard]] const inivalue& value() const;
 
+    [[nodiscard]] bool has_value() const noexcept;
+
+    [[nodiscard]] const auto& variant() const noexcept { return var.var; }
+
     template<typename... Tp>
     [[nodiscard]] inivalue value_or(Tp&&... values) const noexcept;
-
-    [[nodiscard]] bool has_value() const noexcept;
 
     template<typename... Tp>
     void write(Tp&&... values);
@@ -295,19 +295,19 @@ public:
     friend class ini;
 
     template<typename T>
-    const entry& operator[](const T& key) const noexcept;
+    [[nodiscard]] const entry& operator[](const T& key) const noexcept;
 
     template<typename T>
-    entry& operator[](const T& key) noexcept;
+    [[nodiscard]] entry& operator[](const T& key) noexcept;
 
-    auto begin() const noexcept { return map.begin(); }
-    auto end()   const noexcept { return map.end(); }
+    [[nodiscard]] auto begin() const noexcept { return map.begin(); }
+    [[nodiscard]] auto end()   const noexcept { return map.end(); }
 
-    auto begin() noexcept { return map.begin(); }
-    auto end()   noexcept { return map.end(); }
+    [[nodiscard]] auto begin() noexcept { return map.begin(); }
+    [[nodiscard]] auto end()   noexcept { return map.end(); }
 
-    auto size()  const noexcept { return map.size(); }
-    auto empty() const noexcept { return map.empty(); }
+    [[nodiscard]] auto size()  const noexcept { return map.size(); }
+    [[nodiscard]] auto empty() const noexcept { return map.empty(); }
 
 private:
     std::unordered_map<std::string, entry> map;
@@ -325,24 +325,23 @@ public:
     friend std::ofstream& ::operator<<(std::ofstream& ofstream, const dot::ini& ini);
 
     template<typename T>
-    const section& operator[](const T& key) const;
+    [[nodiscard]] const section& operator[](const T& key) const;
 
     template<typename T>
-    section& operator[](const T& key) noexcept;
+    [[nodiscard]] section& operator[](const T& key) noexcept;
 
-    auto begin() const noexcept { return map.begin(); }
-    auto end()   const noexcept { return map.end(); }
+    [[nodiscard]] auto begin() const noexcept { return map.begin(); }
+    [[nodiscard]] auto end()   const noexcept { return map.end(); }
 
-    auto begin() noexcept { return map.begin(); }
-    auto end()   noexcept { return map.end(); }
+    [[nodiscard]] auto begin() noexcept { return map.begin(); }
+    [[nodiscard]] auto end()   noexcept { return map.end(); }
 
-    auto size()  const noexcept { return map.size(); }
-    auto empty() const noexcept { return map.empty(); }
+    [[nodiscard]] auto size()  const noexcept { return map.size(); }
+    [[nodiscard]] auto empty() const noexcept { return map.empty(); }
 
 private:
     std::unordered_map<std::string, section> map;
 };
-
 
 }
 
@@ -376,14 +375,19 @@ dot::entry::entry(std::string::const_iterator begin, std::string::const_iterator
     throw std::runtime_error("no suitable value could b parsed from: " + std::string(begin, end));
 }
 
-[[nodiscard]] const dot::inivalue& dot::entry::value() const
+const dot::inivalue& dot::entry::value() const
 {
     if(std::holds_alternative<std::monostate>(var.var)) throw std::runtime_error("entry does not exist");
     return var;
 }
 
+bool dot::entry::has_value() const noexcept
+{
+    return not std::holds_alternative<std::monostate>(var.var);
+}
+
 template<typename... Tp>
-[[nodiscard]] dot::inivalue dot::entry::value_or(Tp&&... values) const noexcept
+dot::inivalue dot::entry::value_or(Tp&&... values) const noexcept
 {
     if(has_value()) return value();
 
@@ -398,12 +402,6 @@ template<typename... Tp>
         else if constexpr (std::is_floating_point_v<T>) return std::vector<double>{std::forward<Tp>(values)...};
         else static_assert(false_type<T>::value, "vector type not supported");
     }
-}
-
-
-[[nodiscard]] bool dot::entry::has_value() const noexcept
-{
-    return not std::holds_alternative<std::monostate>(var.var);
 }
 
 template<typename... Tp>
@@ -526,7 +524,7 @@ std::ofstream& operator<<(std::ofstream& ofstream, const dot::ini& ini)
         for(const auto& entry : section.second)
         {
             if(not entry.second.has_value()) continue;
-            auto var = entry.second.value().getVariant();
+            auto var = entry.second.variant();
 
             ofstream << entry.first << " = ";
             switch(var.index())
