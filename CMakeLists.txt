@@ -8,7 +8,7 @@ file(GLOB_RECURSE SRCS ${parser_SOURCE_DIR}/src/*.cpp)
 
 add_executable(parser ${HDRS} ${SRCS})
 
-set(CMAKE_CXX_FLAGS "-Wall -Werror -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2")
+set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2")
 
 # -Wall # some errors
 # -Werror # treat all warnings as errors

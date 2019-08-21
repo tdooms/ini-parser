@@ -1,5 +1,5 @@
 //============================================================================
-// @name        : ini.h
+// @name        : settings.h
 // @author      : Thomas Dooms
 // @date        : 8/20/19
 // @version     : 0.1
@@ -45,15 +45,23 @@ constexpr bool check_convertible_type() noexcept
     return std::is_integral_v<Type> or std::is_floating_point_v<Type> or std::is_convertible_v<Type, std::string>;
 }
 
-template <typename T, typename T2=void> struct type_converter;
-template <> struct type_converter<const char*> { using type = std::string; };
-template <> struct type_converter<std::string> { using type = std::string; };
+template<typename T>
+constexpr size_t type_index()
+{
+    if      constexpr(std::is_integral_v<T>) return 0;
+    else if constexpr(std::is_floating_point_v<T>) return 1;
+    else if constexpr(std::is_convertible_v<T, std::string>) return 2;
+    else return 3;
+}
+template<size_t I> struct type_converter;
+template<> struct type_converter<0> { using type = long; };
+template<> struct type_converter<1> { using type = double; };
+template<> struct type_converter<2> { using type = std::string; };
+template<> struct type_converter<3> { using type = void; };
 
-template <> struct type_converter<float > { using type = double; };
-template <> struct type_converter<double> { using type = double; };
+template<typename T>
+using type_converter_t = typename type_converter<type_index<T>()>::type;
 
-template <typename T>
-struct type_converter<T, typename std::enable_if<std::is_integral_v<T>>::type> { using type = long; };
 
 struct iniparser
 {
@@ -159,7 +167,7 @@ public:
         if constexpr (sizeof...(Types) == 1)
         {
             auto first = std::get<0>(std::tuple(types...));
-            if constexpr      (check_convertible_type<Type>()) entry = static_cast<typename type_converter<Type>::type>(first);
+            if constexpr      (check_convertible_type<Type>()) entry = static_cast<type_converter_t<Type>>(first);
             else if constexpr (std::is_same_v<Type, ini_tuple_element>) find_index(std::forward<ini_tuple_element>(first), entry);
             else static_assert(false_type<Type>::value, "type for variable not supported");
         }
@@ -171,7 +179,7 @@ public:
         }
         else if constexpr (is_vector_ini_type<Types...>()) //clang nonsense
         {
-            if constexpr(check_convertible_type<Type>()) entry = std::vector<typename type_converter<Type>::type >{std::forward<Types>(types)...};
+            if constexpr(check_convertible_type<Type>()) entry = std::vector<type_converter_t<Type>>{std::forward<Types>(types)...};
             else static_assert(false_type<Type>::value, "type for vector not supported");
         }
         else
@@ -183,10 +191,9 @@ public:
 
     [[nodiscard]] constexpr inline auto index() const noexcept { return entry.index(); }
 
-    template<typename T>
+    template<typename T, std::enable_if_t<check_exact_type<T>(), int> = 0>
     [[nodiscard]] operator const T&() const noexcept
     {
-        static_assert(check_exact_type<T>(), "please only use values that consist of: double, long, std::string");
         return std::get<T>(entry);
     }
 
@@ -194,13 +201,13 @@ public:
     [[nodiscard]] operator T() const noexcept
     {
         static_assert(check_convertible_type<T>(), "please only use values that can convert to: double, long, std::string");
-        return static_cast<T>(std::get<typename type_converter<T>::type>(entry));
+        return static_cast<T>(std::get<type_converter_t<T>>(entry));
     }
 
     template<typename T>
     [[nodiscard]] operator const std::vector<T>&() const noexcept
     {
-        static_assert(check_exact_type<T>(), "please only use vectors that consist of: double, long, std::string");
+        static_assert(check_exact_type<T>() or std::is_same_v<T, ini_tuple_element>, "please only use vectors that consist of: double, long, std::string");
         return std::get<std::vector<T>>(entry);
     }
 
@@ -255,7 +262,7 @@ private:
         using Type = std::tuple_element_t<I, typename std::tuple<Types...>>;
         auto&& elem = std::get<I>(std::tuple(types...));
 
-        if constexpr(check_convertible_type<Type>()) vec[I] = static_cast<typename type_converter<Type>::type>(elem);
+        if constexpr(check_convertible_type<Type>()) vec[I] = static_cast<type_converter_t<Type>>(elem);
         else static_assert(false_type<Type>::value, "type for tuple not supported");
 
         if constexpr (I+1 == sizeof...(Types)) return;
@@ -267,7 +274,7 @@ private:
     {
         using Type = std::tuple_element_t<I, typename std::tuple<Types...>>;
 
-        if constexpr(check_convertible_type<Type>()) std::get<I>(tuple) = std::get<typename type_converter<Type>::type>(vec[I]);
+        if constexpr(check_convertible_type<Type>()) std::get<I>(tuple) = std::get<type_converter_t<Type>>(vec[I]);
         else static_assert(false_type<Type>::value, "type for tuple not supported");
 
         if constexpr (I+1 == sizeof...(Types)) return;
@@ -348,7 +355,56 @@ public:
         if(callback != nullptr) callback(*this, callback_data);
     }
 
+    void erase() noexcept
+    {
+        variable = inivariable();
+    }
+
+    template<typename T>
+    friend T& operator<<(T& stream, const entry& entry)
+    {
+        switch(entry.variable.index())
+        {
+            case 0: break;
+            case 1: stream << static_cast<const double&     >(entry.variable); break;
+            case 2: stream << static_cast<const long&       >(entry.variable); break;
+            case 3: stream << '"' << static_cast<const std::string&>(entry.variable) << '"'; break;
+            case 4: print(stream, static_cast<const std::vector<double           >&>(entry.variable)); break;
+            case 5: print(stream, static_cast<const std::vector<long             >&>(entry.variable)); break;
+            case 6: print(stream, static_cast<const std::vector<std::string      >&>(entry.variable)); break;
+            case 7: print(stream, static_cast<const std::vector<inivariable::ini_tuple_element>&>(entry.variable)); break;
+            default: break;
+        }
+        return stream;
+    }
+
 private:
+    template<typename T>
+    static T& print(T& stream, const std::vector<inivariable::ini_tuple_element>& vec) noexcept
+    {
+        stream << '(';
+        for(size_t i = 0; i < vec.size(); i++)
+        {
+            switch(vec[i].index())
+            {
+                case 0: stream << std::get<double     >(vec[i]); break;
+                case 1: stream << std::get<long       >(vec[i]); break;
+                case 2: stream << '"' <<std::get<std::string>(vec[i]) << '"'; break;
+            }
+            stream << ((i == vec.size()-1) ? ")" : ", ");
+        }
+        return stream;
+    }
+
+    template<typename T, typename V>
+    static T& print(T& stream, const std::vector<V>& vec) noexcept
+    {
+        stream << '[';
+        if constexpr(std::is_same_v<V, std::string>) for(size_t i = 0; i < vec.size()-1; i++) stream << '"' << vec[i] << "\", ";
+        else for(size_t i = 0; i < vec.size()-1; i++) stream << vec[i] << ", ";
+        return stream << vec.back() << ']';
+    }
+
     inivariable variable;
 
     mutable std::function<void(const entry&, void*)> callback = nullptr;
@@ -357,7 +413,7 @@ private:
 
 class section
 {
-    friend class ini;
+    friend class settings;
 
 public:
     section() = default;
@@ -379,17 +435,26 @@ public:
         else return item;
     }
 
+    [[nodiscard]] auto begin() const noexcept { return map.begin(); }
+    [[nodiscard]] auto end() const noexcept { return map.end(); }
+
+    [[nodiscard]] auto begin() noexcept { return map.begin(); }
+    [[nodiscard]] auto end() noexcept { return map.end(); }
+
+    [[nodiscard]] auto empty() noexcept { return map.empty(); }
+    [[nodiscard]] auto size() noexcept { return map.size(); }
+
 private:
     std::unordered_map<std::string, entry> map;
     inline static const entry item = entry();
 };
 
-class ini
+class settings
 {
 public:
-    ini() = default;
+    settings() = default;
 
-    explicit ini(const std::string& path)
+    explicit settings(std::string path) : path(std::move(path))
     {
         const std::string data = iniparser::read_to_string(path);
         const auto end = data.end();
@@ -464,7 +529,40 @@ public:
             if(current == end) return;
             line++;
         }
-    };
+    }
+
+    ~settings()
+    {
+        std::ofstream file(path);
+        if(not file.is_open()) throw std::runtime_error("file could not be stored");
+        file << *this;
+    }
+
+    [[nodiscard]] auto begin() const noexcept { return map.begin(); }
+    [[nodiscard]] auto end() const noexcept { return map.end(); }
+
+    [[nodiscard]] auto begin() noexcept { return map.begin(); }
+    [[nodiscard]] auto end() noexcept { return map.end(); }
+
+    [[nodiscard]] auto empty() noexcept { return map.empty(); }
+    [[nodiscard]] auto size() noexcept { return map.size(); }
+
+    template<typename T>
+    friend T& operator<<(T& stream, const dot::settings& ini)
+    {
+        for(const auto& section_data : ini)
+        {
+            const auto& section = section_data.second;
+            if( std::none_of(section.begin(), section.end(), [](const auto& data){ return data.second.has_value(); }) ) continue;
+
+            stream << '[' << section_data.first << "]\n";
+            for(const auto& entry_data : section)
+            {
+                stream << entry_data.first << " = " << entry_data.second << '\n';
+            }
+        }
+        return stream;
+    }
 
     template<typename T>
     section& operator[](const T& key) noexcept
@@ -549,6 +647,7 @@ private:
         throw std::runtime_error(err);
     }
 
+    std::string path;
     std::unordered_map<std::string, section> map;
 };
 
