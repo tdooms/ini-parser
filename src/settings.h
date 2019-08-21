@@ -65,9 +65,10 @@ using type_converter_t = typename type_converter<type_index<T>()>::type;
 
 struct iniparser
 {
-    static std::string read_to_string(const std::string &path)
+    static std::string read_to_string(const std::string& path)
     {
         auto file = fopen(path.c_str(), "rb");
+        if(not file) throw std::runtime_error("could not open file: " + path);
         fseek(file, 0, SEEK_END);
         auto size = static_cast<size_t>(ftell(file));
         fseek(file, 0, SEEK_SET);
@@ -454,7 +455,7 @@ class settings
 public:
     settings() = default;
 
-    explicit settings(std::string path) : path(std::move(path))
+    explicit settings(std::string file_path) : path(std::move(file_path))
     {
         const std::string data = iniparser::read_to_string(path);
         const auto end = data.end();
@@ -534,7 +535,6 @@ public:
     ~settings()
     {
         std::ofstream file(path);
-        if(not file.is_open()) throw std::runtime_error("file could not be stored");
         file << *this;
     }
 

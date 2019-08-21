@@ -8,7 +8,7 @@ static void function(const dot::entry& entry, [[maybe_unused]] void* a)
 
 int main()
 {
-    dot::settings ini("test.settings");
+    dot::settings ini("test.ini");
     ini["Section"]["var1"].attach_callback(function);
     ini["Section"]["var1"].change(8);
     ini["Section"]["var1"].change("string");

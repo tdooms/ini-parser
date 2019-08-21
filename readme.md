@@ -53,5 +53,8 @@ Making a program to write to the settings would be as easy as this.
 ```bash 
     dot::settings config("test.settings");
     config["section"]["var0"].write(1, "string");
-
 ```
+
+## Notes
+* booleans are interpreted as integer types and will be stored as 0 and 1 (true and false can be parsed)
+* as the internal structure is a hashmap, entries will not be written back in the same order.
