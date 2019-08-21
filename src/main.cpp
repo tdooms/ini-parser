@@ -17,9 +17,12 @@ int main()
 
     const double& test = ini["Section"]["var0"].value();
 
+    float a = ini["Section"]["var0"].value();
+    std::tuple<bool, bool> b = ini["Section"]["var3"].value();
+
     ini["Section"]["var0"].change(8.6);
 
-    std::cout << v << " " << test << '\n';
+    std::cout << v << " " << test << " " << a << " " << std::get<1>(b) << '\n';
 
     return 0;
 }
