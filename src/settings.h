@@ -1,5 +1,5 @@
 //============================================================================
-// @name        : ini.h
+// @name        : settings.h
 // @author      : Thomas Dooms
 // @date        : 8/20/19
 // @version     : 0.1
@@ -17,10 +17,10 @@
 #include <unordered_map>
 #include <algorithm>
 #include <fstream>
+#include <functional>
 
 namespace dot
 {
-
     using iterator = std::string::const_iterator;
 
     template<typename T>
@@ -37,7 +37,7 @@ namespace dot
     template<typename Type>
     constexpr bool check_exact_type() noexcept
     {
-        return std::is_same_v<Type, double> or std::is_same_v<Type, long> or std::is_same_v<Type, std::string>;
+        return std::is_same_v<Type, bool> or std::is_same_v<Type, double> or std::is_same_v<Type, long> or std::is_same_v<Type, std::string>;
     }
 
     template<typename Type>
@@ -49,16 +49,18 @@ namespace dot
     template<typename T>
     constexpr size_t type_index()
     {
-        if      constexpr(std::is_integral_v<T>) return 0;
-        else if constexpr(std::is_floating_point_v<T>) return 1;
-        else if constexpr(std::is_convertible_v<T, std::string>) return 2;
-        else return 3;
+        if      constexpr(std::is_same_v<T, bool>) return 0;
+        else if constexpr(std::is_integral_v<T>) return 1;
+        else if constexpr(std::is_floating_point_v<T>) return 2;
+        else if constexpr(std::is_convertible_v<T, std::string>) return 3;
+        else return 4;
     }
     template<size_t I> struct type_converter;
-    template<> struct type_converter<0> { using type = long; };
-    template<> struct type_converter<1> { using type = double; };
-    template<> struct type_converter<2> { using type = std::string; };
-    template<> struct type_converter<3> { using type = void; };
+    template<> struct type_converter<0> { using type = bool; };
+    template<> struct type_converter<1> { using type = long; };
+    template<> struct type_converter<2> { using type = double; };
+    template<> struct type_converter<3> { using type = std::string; };
+    template<> struct type_converter<4> { using type = void; };
 
     template<typename T>
     using type_converter_t = typename type_converter<type_index<T>()>::type;
@@ -66,98 +68,32 @@ namespace dot
 
     struct iniparser
     {
-        static std::string read_to_string(const std::string& path)
-        {
-            auto file = fopen(path.c_str(), "rb");
-            if(not file) throw std::runtime_error("could not open file: " + path);
-            fseek(file, 0, SEEK_END);
-            auto size = static_cast<size_t>(ftell(file));
-            fseek(file, 0, SEEK_SET);
+        [[nodiscard]] static std::string read_to_string(const std::string& path);
 
-            std::string string(size, 0);
-            fread(string.data(), 1, size, file);
-            fclose(file);
-            return string;
-        }
+        [[nodiscard]] constexpr static bool is_whitespace(char c) noexcept;
 
-        [[nodiscard]] constexpr inline static bool is_whitespace(char c) noexcept
-        {
-            return c == ' ' or c == '\t' or c == '\r';
-        }
+        [[nodiscard]] constexpr static bool is_number(char c) noexcept;
 
-        [[nodiscard]] constexpr inline static bool is_number(char c) noexcept
-        {
-            return c >= '0' and c <= '9';
-        }
+        [[nodiscard]] constexpr static bool is_character(char c) noexcept;
 
-        [[nodiscard]] constexpr inline static bool is_character(char c) noexcept
-        {
-            return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z');
-        }
+        [[nodiscard]] static iterator skip_whitespace(iterator begin, iterator end) noexcept;
 
-        [[nodiscard]] inline static iterator skip_whitespace(iterator begin, iterator end) noexcept
-        {
-            for(; begin != end; begin++)
-            {
-                if(not is_whitespace(*begin)) return begin;
-            }
-            return end;
-        }
+        [[nodiscard]] static iterator find_token_end(iterator begin, iterator end) noexcept;
 
-        [[nodiscard]] inline static iterator find_token_end(iterator begin, iterator end) noexcept
-        {
-            for(; begin != end; begin++)
-            {
-                if(not (is_character(*begin) or is_number(*begin))) return begin;
-            }
-            return end;
-        }
+        [[nodiscard]] static iterator skip_line(iterator begin, iterator end) noexcept;
 
-        [[nodiscard]] inline static iterator skip_line(iterator begin, iterator end) noexcept
-        {
-            for(; begin != end-1; begin++)
-            {
-                if(*begin == '\n') return ++begin;
-            }
-            return end;
-        }
+        [[nodiscard]] static iterator skip_line(iterator begin) noexcept;
 
-        [[nodiscard]] inline static iterator skip_line(iterator begin) noexcept
-        {
-            for(; *begin != '\0'; begin++)
-            {
-                if(*begin == '\n') return ++begin;
-            }
-            return begin;
-        }
+        [[nodiscard]] static std::pair<iterator, bool> skip_empty_line(iterator begin, iterator end) noexcept;
 
-        [[nodiscard]] inline static std::pair<iterator, bool> skip_empty_line(iterator begin, iterator end) noexcept
-        {
-            bool is_empty = true;
-            for(; begin != end-1; begin++)
-            {
-                if(*begin == '\n') return {++begin, is_empty};
-                if(not is_whitespace(*begin)) is_empty = false;
-            }
-            return {end, is_empty};
-        }
-
-        [[nodiscard]] inline static iterator find_string_end(iterator begin, iterator end) noexcept
-        {
-            begin++;
-            for(; begin != end; begin++)
-            {
-                if(*begin == '"' and *(begin-1) != '\\') return ++begin;
-            }
-            return end;
-        }
+        [[nodiscard]] static iterator find_string_end(iterator begin, iterator end) noexcept;
     };
 
     class inivariable
     {
     public:
-        using ini_tuple_element = std::variant<double, long, std::string>;
-        using ini_element = std::variant<std::monostate, double, long, std::string, std::vector<double>, std::vector<long>,  std::vector<std::string>, std::vector<ini_tuple_element>>;
+        using ini_tuple_element = std::variant<bool, double, long, std::string>;
+        using ini_element = std::variant<std::monostate, bool, double, long, std::string, std::vector<bool>, std::vector<double>, std::vector<long>,  std::vector<std::string>, std::vector<ini_tuple_element>>;
 
         explicit inivariable() = default;
 
@@ -235,9 +171,10 @@ namespace dot
             if(not std::all_of(vec.begin(), vec.end(), [index](const auto& iter){ return iter.index() == index; }))
                 throw std::runtime_error("not all elements in vector are same type, please use (..) for a tuple");
 
-            if     (index == 0) fill_vector<double     >(std::forward<std::vector<ini_tuple_element>>(vec), entry);
-            else if(index == 1) fill_vector<long       >(std::forward<std::vector<ini_tuple_element>>(vec), entry);
-            else if(index == 2) fill_vector<std::string>(std::forward<std::vector<ini_tuple_element>>(vec), entry);
+            if     (index == 0) fill_vector<bool       >(std::forward<std::vector<ini_tuple_element>>(vec), entry);
+            else if(index == 1) fill_vector<double     >(std::forward<std::vector<ini_tuple_element>>(vec), entry);
+            else if(index == 2) fill_vector<long       >(std::forward<std::vector<ini_tuple_element>>(vec), entry);
+            else if(index == 3) fill_vector<std::string>(std::forward<std::vector<ini_tuple_element>>(vec), entry);
         }
 
         template<typename T>
@@ -295,10 +232,14 @@ namespace dot
         template<typename... Types>
         explicit entry(Types&&... types) : variable(std::forward<Types>(types)...) {}
 
+        [[nodiscard]] auto index() const noexcept
+        {
+            return variable.index();
+        }
 
         [[nodiscard]] bool empty() const noexcept
         {
-            return variable.index() == 0;
+            return index() == 0;
         }
         [[nodiscard]] bool has_value() const noexcept
         {
@@ -306,15 +247,15 @@ namespace dot
         }
         [[nodiscard]] bool is_variable() const noexcept
         {
-            return variable.index() > 0 and variable.index() < 4;
+            return index() > 0 and index() < 5;
         }
         [[nodiscard]] bool is_vector() const noexcept
         {
-            return variable.index() > 3 and variable.index() < 7;
+            return index() > 4 and index() < 9;
         }
         [[nodiscard]] bool is_tuple() const noexcept
         {
-            return variable.index() == 7;
+            return index() == 9;
         }
 
         void attach_callback(std::function<void(const entry&, void*)> fn, void* args = nullptr) const noexcept
@@ -362,51 +303,7 @@ namespace dot
             variable = inivariable();
         }
 
-        template<typename T>
-        friend T& operator<<(T& stream, const entry& entry)
-        {
-            switch(entry.variable.index())
-            {
-                case 0: break;
-                case 1: stream << static_cast<const double&     >(entry.variable); break;
-                case 2: stream << static_cast<const long&       >(entry.variable); break;
-                case 3: stream << '"' << static_cast<const std::string&>(entry.variable) << '"'; break;
-                case 4: print(stream, static_cast<const std::vector<double           >&>(entry.variable)); break;
-                case 5: print(stream, static_cast<const std::vector<long             >&>(entry.variable)); break;
-                case 6: print(stream, static_cast<const std::vector<std::string      >&>(entry.variable)); break;
-                case 7: print(stream, static_cast<const std::vector<inivariable::ini_tuple_element>&>(entry.variable)); break;
-                default: break;
-            }
-            return stream;
-        }
-
     private:
-        template<typename T>
-        static T& print(T& stream, const std::vector<inivariable::ini_tuple_element>& vec) noexcept
-        {
-            stream << '(';
-            for(size_t i = 0; i < vec.size(); i++)
-            {
-                switch(vec[i].index())
-                {
-                    case 0: stream << std::get<double     >(vec[i]); break;
-                    case 1: stream << std::get<long       >(vec[i]); break;
-                    case 2: stream << '"' <<std::get<std::string>(vec[i]) << '"'; break;
-                }
-                stream << ((i == vec.size()-1) ? ")" : ", ");
-            }
-            return stream;
-        }
-
-        template<typename T, typename V>
-        static T& print(T& stream, const std::vector<V>& vec) noexcept
-        {
-            stream << '[';
-            if constexpr(std::is_same_v<V, std::string>) for(size_t i = 0; i < vec.size()-1; i++) stream << '"' << vec[i] << "\", ";
-            else for(size_t i = 0; i < vec.size()-1; i++) stream << vec[i] << ", ";
-            return stream << vec.back() << ']';
-        }
-
         inivariable variable;
 
         mutable std::function<void(const entry&, void*)> callback = nullptr;
@@ -415,26 +312,21 @@ namespace dot
 
     class section
     {
-        friend class ini;
-
     public:
         section() = default;
 
-        template<typename T>
-        entry& operator[](const T& key) noexcept
+        entry& operator[](const std::string& key) noexcept
         {
-            static_assert(std::is_convertible_v<T, std::string>, "key type not convertible to std::string");
-            return map.try_emplace(key).first->second;
+            const auto iter = std::find_if(map.begin(), map.end(), [&key](const auto& elem){ return elem.first == key; });
+            if(iter == map.end()) return map.emplace_back(key, entry()).second;
+            else return iter->second;
         }
 
-        template<typename T>
-        const entry& operator[](const T& key) const noexcept
+        const entry& operator[](const std::string& key) const noexcept
         {
-            static_assert(std::is_convertible_v<T, std::string>, "key type not convertible to std::string");
-            auto iter = map.find(key);
-
-            if(iter != map.end()) return iter->second;
-            else return item;
+            const auto iter = std::find_if(map.begin(), map.end(), [&key](const auto& elem){ return elem.first == key; });
+            if(iter == map.end()) return item;
+            else return iter->second;
         }
 
         [[nodiscard]] auto begin() const noexcept { return map.begin(); }
@@ -443,213 +335,134 @@ namespace dot
         [[nodiscard]] auto begin() noexcept { return map.begin(); }
         [[nodiscard]] auto end() noexcept { return map.end(); }
 
-        [[nodiscard]] auto empty() noexcept { return map.empty(); }
-        [[nodiscard]] auto size() noexcept { return map.size(); }
+        [[nodiscard]] auto empty() const noexcept { return map.empty(); }
+        [[nodiscard]] auto size() const noexcept { return map.size(); }
 
     private:
-        std::unordered_map<std::string, entry> map;
+        std::vector<std::pair<std::string, entry>> map;
         inline static const entry item = entry();
     };
 
-    class ini
+    struct iniprinter
     {
-    public:
-        ini() = default;
-
-        explicit ini(std::string file_path) : path(std::move(file_path))
+        template<typename T, typename V>
+        static T& print(T& stream, const V& val)
         {
-            const std::string data = iniparser::read_to_string(path);
-            const auto end = data.end();
-
-            auto current = data.begin();
-            auto section = map.end();
-            auto line = 1;
-
-            while(true)
+            if      constexpr (std::is_same_v<V, bool>) stream << (val?"true":"false");
+            else if constexpr (std::is_same_v<V, std::string>) stream << '"' << val << '"';
+            else if constexpr (std::is_same_v<V, dot::inivariable::ini_tuple_element>)
             {
-                if(*current == '[')
-                {
-                    const auto next = iniparser::find_token_end(++current, end);
-                    if( next == end) error("file end before closing ]", line);
-                    if(*next != ']') error("did not find closing ] after section name", line);
-
-                    const auto result = map.try_emplace(std::string(current, next), dot::section());
-                    if(not result.second) error("duplicate section name: ", current, next, line);
-                    section = result.first;
-
-                    const auto line_end = iniparser::skip_empty_line(next+1, end);
-                    if(not line_end.second) error("symbols found after section name", next+1, line_end.first-1, line);
-                    else current = line_end.first;
-                }
-                else if(*current == '#' or *current == ';')
-                {
-                    current = iniparser::skip_line(current, end);
-                }
-                else if(iniparser::is_whitespace(*current))
-                {
-                    auto result = iniparser::skip_empty_line(current, end);
-                    if(not result.second) error("please do not use whitespace before data", line);
-                    else current = result.first;
-                }
-                else if(iniparser::is_character(*current))
-                {
-                    if(section == map.end()) error("variable has no section", line);
-
-                    const auto token_end = iniparser::find_token_end(current, end);
-
-                    const auto var_begin = iniparser::skip_whitespace(token_end, end);
-                    if(*var_begin != '=') error("could not find '='", line);
-                    auto current_var = iniparser::skip_whitespace(var_begin+1, end);
-
-
-                    if(*current_var == '(' or *current_var == '[')
-                    {
-                        std::vector<inivariable::ini_tuple_element> tuple;
-                        bool done = false;
-                        bool is_tuple = *current_var == '(';
-
-                        while(not done)
-                        {
-                            auto&& [new_done, var] = parse_tuple_element(current_var, end, line, (is_tuple) ? ')' : ']');
-                            tuple.emplace_back(std::forward<inivariable::ini_tuple_element>(var));
-                            done = new_done;
-                        }
-                        section->second.map.try_emplace(std::string(current, token_end), entry(tuple, is_tuple));
-                        current = current_var + 1;
-                    }
-                    else
-                    {
-                        auto&& [next, variable] = parse_variable(current_var, end, line);
-                        section->second.map.try_emplace(std::string(current, token_end), std::forward<inivariable::ini_tuple_element>(variable));
-                        current = next;
-                    }
-                    auto&& [end_line, is_empty] = iniparser::skip_empty_line(current, end);
-                    if(not is_empty) error("line not empty after variable", line);
-                    current = end_line;
-                }
-
-                if(current == end) return;
-                line++;
+                if     (val.index() == 0) print(stream, std::get<bool       >(val));
+                else if(val.index() == 1) print(stream, std::get<double     >(val));
+                else if(val.index() == 2) print(stream, std::get<long       >(val));
+                else if(val.index() == 3) print(stream, std::get<std::string>(val));
+                else throw std::runtime_error("internal error 1");
             }
+            else stream << val;
+            return stream;
         }
 
-        ~ini()
+        template<typename T, typename V>
+        static T& print(T& stream, const std::vector<V>& vec)
         {
-            std::ofstream file(path);
-            file << *this;
-        }
-
-        [[nodiscard]] auto begin() const noexcept { return map.begin(); }
-        [[nodiscard]] auto end() const noexcept { return map.end(); }
-
-        [[nodiscard]] auto begin() noexcept { return map.begin(); }
-        [[nodiscard]] auto end() noexcept { return map.end(); }
-
-        [[nodiscard]] auto empty() noexcept { return map.empty(); }
-        [[nodiscard]] auto size() noexcept { return map.size(); }
-
-        template<typename T>
-        friend T& operator<<(T& stream, const dot::ini& ini)
-        {
-            for(const auto& section_data : ini)
-            {
-                const auto& section = section_data.second;
-                if( std::none_of(section.begin(), section.end(), [](const auto& data){ return data.second.has_value(); }) ) continue;
-
-                stream << '[' << section_data.first << "]\n";
-                for(const auto& entry_data : section)
-                {
-                    stream << entry_data.first << " = " << entry_data.second << '\n';
-                }
-            }
+            constexpr auto close = std::is_same_v<V, dot::inivariable::ini_tuple_element> ? std::pair<char, char>{'(', ')'} : std::pair<char, char>{'[', ']'};
+            stream << close.first;
+            for(size_t i = 0; i < vec.size()-1; i++) print(stream, vec[i]) << ", ";
+            print(stream, vec.back());
+            stream << close.second;
             return stream;
         }
 
         template<typename T>
-        section& operator[](const T& key) noexcept
+        static T& print(T& stream, const entry& entry)
         {
-            static_assert(std::is_convertible_v<T, std::string>, "key type not convertible to std::string");
-            return map.try_emplace(key).first->second;
+            switch(entry.index())
+            {
+                case 0: return stream;
+                case 1: return print(stream, static_cast<const bool&                                       >(entry.value()));
+                case 2: return print(stream, static_cast<const double&                                     >(entry.value()));
+                case 3: return print(stream, static_cast<const long&                                       >(entry.value()));
+                case 4: return print(stream, static_cast<const std::string&                                >(entry.value()));
+                case 5: return print(stream, static_cast<const std::vector<bool>&                          >(entry.value()));
+                case 6: return print(stream, static_cast<const std::vector<double>&                        >(entry.value()));
+                case 7: return print(stream, static_cast<const std::vector<long>&                          >(entry.value()));
+                case 8: return print(stream, static_cast<const std::vector<std::string>&                   >(entry.value()));
+                case 9: return print(stream, static_cast<const std::vector<inivariable::ini_tuple_element>&>(entry.value()));
+            }
+            throw std::runtime_error("internal error 0");
         }
 
         template<typename T>
-        const section& operator[](const T& key) const
+        static T& print(T& stream, const std::string& name, const section& section)
         {
-            static_assert(std::is_convertible_v<T, std::string>, "key type not convertible to std::string");
-            auto iter = map.find(key);
+            if( std::none_of(section.begin(), section.end(), [](const auto& data){ return data.second.has_value(); }) ) return stream;
+            stream << '[' << name << "]\n";
 
+            for(const auto& elem : section)
+            {
+                if(elem.second.empty()) continue;
+                stream << elem.first << " = ";
+                print(stream, elem.second) << '\n';
+            }
+            stream << '\n';
+            return stream;
+        }
+    };
+
+    class settings
+    {
+    public:
+        settings() = default;
+
+        explicit settings(std::string file_path);
+
+        ~settings();
+
+        [[nodiscard]] auto begin() const noexcept { return map.begin(); }
+        [[nodiscard]] auto end() const noexcept { return map.end(); }
+
+        [[nodiscard]] auto begin() noexcept { return map.begin(); }
+        [[nodiscard]] auto end() noexcept { return map.end(); }
+
+        [[nodiscard]] auto empty() const noexcept { return map.empty(); }
+        [[nodiscard]] auto size() const noexcept { return map.size(); }
+
+        template<typename T>
+        friend T& operator<<(T& stream, const dot::settings& settings)
+        {
+            for(const auto& section_data : settings)
+            {
+                const auto& [name, section] = section_data;
+                iniprinter::print(stream, name, section);
+            }
+            return stream;
+        }
+
+        section& operator[](const std::string& key) noexcept
+        {
+            const auto iter = std::find_if(map.begin(), map.end(), [&key](const auto& elem){ return elem.first == key; });
+            if(iter == map.end()) return map.emplace_back(key, section()).second;
+            else return iter->second;
+        }
+
+        const section& operator[](const std::string& key) const
+        {
+            const auto iter = std::find_if(map.begin(), map.end(), [&key](const auto& elem){ return elem.first == key; });
             if(iter != map.end()) return iter->second;
             else throw std::runtime_error("could not find section with key" + std::string(key));
         }
 
     private:
-        static std::pair<bool, dot::inivariable::ini_tuple_element> parse_tuple_element(iterator& begin, iterator end, int line, char close)
-        {
-            begin = iniparser::skip_whitespace(begin+1, end);
-            auto&& [next, variable] = parse_variable(begin, end, line);
-            begin = iniparser::skip_whitespace(next, end);
+        static std::pair<bool, dot::inivariable::ini_tuple_element> parse_tuple_element(iterator& begin, iterator end, int line, char close);
 
-            if     ( begin == end  ) error("end of file before tuple end", line);
-            else if(*begin == ','  ) return {false, std::forward<inivariable::ini_tuple_element>(variable)};
-            else if(*begin == close) return {true , std::forward<inivariable::ini_tuple_element>(variable)};
-            else error("could not find next , or closing brace after value", begin+1, line);
-            throw std::runtime_error("serious error");
-        }
+        static std::pair<iterator, dot::inivariable::ini_tuple_element> parse_variable(iterator begin, iterator end, int line) noexcept;
 
-        static std::pair<iterator, dot::inivariable::ini_tuple_element> parse_variable(iterator begin, iterator end, int line) noexcept
-        {
-            constexpr const char* false_str = "false";
-            constexpr const char* true_str = "true";
-
-            if(*begin == '"')
-            {
-                auto result = iniparser::find_string_end(begin, end);
-                return {result, std::string(begin+1, result-1)};
-            }
-            else if(std::equal(begin, begin+5, false_str))
-            {
-                return {begin+5, 0l};
-            }
-            else if(std::equal(begin, begin+4, true_str))
-            {
-                return {begin+4, 1l};
-            }
-            char* temp;
-
-            auto current = begin;
-            for(;current != end and iniparser::is_number(*current); current++);
-
-            if(*current == '.')
-            {
-                double res = std::strtod(begin.base(), &temp);
-                if(temp == begin.base()) error("could not parse value", line);
-                return { static_cast<iterator>(temp), res };
-            }
-            else
-            {
-                long res = std::strtol(begin.base(), &temp, 10);
-                if(temp == begin.base()) error("could not parse value", line);
-                return { static_cast<iterator>(temp), res };
-            }
-        }
-
-        static void error(const char* first, iterator begin, int line)
-        {
-            error(first, begin, iniparser::skip_line(begin)-2, line);
-        }
-        static void error(const char* first, iterator begin, iterator end, int line)
-        {
-            const std::string err = std::string(first) + std::string(": \"") + std::string(begin, end) + "\" on line: " + std::to_string(line);
-            throw std::runtime_error(err);
-        }
-        static void error(const char* first, int line)
-        {
-            const std::string err = first + std::string(" on line: ") + std::to_string(line);
-            throw std::runtime_error(err);
-        }
+        static void error(const char* first, iterator begin, int line);
+        static void error(const char* first, iterator begin, iterator end, int line);
+        static void error(const char* first, int line);
 
         std::string path;
-        std::unordered_map<std::string, section> map;
+        std::vector<std::pair<std::string, section>> map;
     };
 
 

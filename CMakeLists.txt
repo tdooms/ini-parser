@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 file(GLOB_RECURSE HDRS ${parser_SOURCE_DIR}/src/*.h  )
 file(GLOB_RECURSE SRCS ${parser_SOURCE_DIR}/src/*.cpp)
 
-add_executable(parser ${HDRS} ${SRCS})
+add_executable(parser ${HDRS} ${SRCS} src/settings.cpp)
 
 set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wunused -Woverloaded-virtual -Wpedantic -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2")
 
