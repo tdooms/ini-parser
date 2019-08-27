@@ -9,12 +9,7 @@ static void function(const dot::entry& entry, [[maybe_unused]] void* a)
 int main()
 {
     dot::settings ini("test.ini");
-    ini["Section"]["var1"].attach_callback(function);
-    ini["Section"]["var1"].change(8);
-    ini["Section"]["var1"].change("string");
-    ini["Section"]["var1"].write_or_change(1, "string", 5);
-
-    ini["Section"]["var0"].change(8.6);
+    std::cout << ini["Section"]["var4"] << '\n';
 
     return 0;
 }
