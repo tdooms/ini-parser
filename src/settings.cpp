@@ -126,7 +126,7 @@ dot::settings::settings(std::string file_path) : path(std::move(file_path))
         {
             current = iniparser::skip_line(current, end);
         }
-        else if(iniparser::is_whitespace(*current))
+        else if(iniparser::is_whitespace(*current) or *current == '\n')
         {
             auto result = iniparser::skip_empty_line(current, end);
             if(not result.second) error("please do not use whitespace before data", line);
@@ -168,6 +168,7 @@ dot::settings::settings(std::string file_path) : path(std::move(file_path))
             if(not is_empty) error("line not empty after variable", line);
             current = end_line;
         }
+        else throw std::runtime_error(std::string("please do not use: \"") + *current + "\" as the start of a line");
 
         if(current == end) return;
         line++;
