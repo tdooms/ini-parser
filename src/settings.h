@@ -14,7 +14,6 @@
 #include <memory>
 #include <variant>
 #include <vector>
-#include <unordered_map>
 #include <algorithm>
 #include <fstream>
 #include <functional>
@@ -27,24 +26,18 @@ namespace dot
     struct false_type : std::false_type {};
 
     template<typename... Types>
-    constexpr bool is_vector_ini_type()
-    {
-        return std::conjunction_v<std::is_integral<Types>...> or
-               std::conjunction_v<std::is_floating_point<Types>...> or
-               std::conjunction_v<std::is_convertible<std::string, Types>...>;
-    }
+    constexpr inline bool is_vector_ini_type_v = std::conjunction_v<std::is_integral<Types>...> or
+                                                 std::conjunction_v<std::is_floating_point<Types>...> or
+                                                 std::conjunction_v<std::is_convertible<std::string, Types>...>;
 
     template<typename Type>
-    constexpr bool check_exact_type() noexcept
-    {
-        return std::is_same_v<Type, bool> or std::is_same_v<Type, double> or std::is_same_v<Type, long> or std::is_same_v<Type, std::string>;
-    }
+    constexpr inline bool is_stored_type_v = std::is_same_v<Type, bool> or std::is_same_v<Type, double> or std::is_same_v<Type, long> or std::is_same_v<Type, std::string>;
 
     template<typename Type>
-    constexpr bool check_convertible_type() noexcept
-    {
-        return std::is_integral_v<Type> or std::is_floating_point_v<Type> or std::is_convertible_v<Type, std::string>;
-    }
+    constexpr inline bool is_stored_const_ref_v = is_stored_type_v<std::decay<Type>> and std::is_const_v<Type> and std::is_reference_v<Type>;
+
+    template<typename Type>
+    constexpr inline bool is_convertible_type_v = std::is_integral_v<Type> or std::is_floating_point_v<Type> or std::is_convertible_v<Type, std::string>;
 
     template<typename T>
     constexpr size_t type_index()
@@ -55,6 +48,7 @@ namespace dot
         else if constexpr(std::is_convertible_v<T, std::string>) return 3;
         else return 4;
     }
+
     template<size_t I> struct type_converter;
     template<> struct type_converter<0> { using type = bool; };
     template<> struct type_converter<1> { using type = long; };
@@ -105,7 +99,7 @@ namespace dot
             if constexpr (sizeof...(Types) == 1)
             {
                 auto first = std::get<0>(std::tuple(types...));
-                if constexpr      (check_convertible_type<Type>()) entry = static_cast<type_converter_t<Type>>(first);
+                if constexpr      (is_convertible_type_v<Type>) entry = static_cast<type_converter_t<Type>>(first);
                 else if constexpr (std::is_same_v<Type, ini_tuple_element>) find_index(std::forward<ini_tuple_element>(first), entry);
                 else static_assert(false_type<Type>::value, "type for variable not supported");
             }
@@ -115,9 +109,9 @@ namespace dot
                 if(std::get<1>(std::tuple(types...))) entry.emplace<std::vector<ini_tuple_element>>(first);
                 else check_and_convert_vector(std::forward<std::vector<ini_tuple_element>>(first), entry);
             }
-            else if constexpr (is_vector_ini_type<Types...>()) //clang nonsense
+            else if constexpr (is_vector_ini_type_v<Types...>) //clang nonsense
             {
-                if constexpr(check_convertible_type<Type>()) entry = std::vector<type_converter_t<Type>>{std::forward<Types>(types)...};
+                if constexpr(is_convertible_type_v<Type>) entry = std::vector<type_converter_t<Type>>{std::forward<Types>(types)...};
                 else static_assert(false_type<Type>::value, "type for vector not supported");
             }
             else
@@ -127,9 +121,9 @@ namespace dot
             }
         }
 
-        [[nodiscard]] constexpr inline auto index() const noexcept { return entry.index(); }
+        [[nodiscard]] constexpr size_t index() const noexcept { return entry.index(); }
 
-        template<typename T, std::enable_if_t<check_exact_type<T>(), int> = 0>
+        template<typename T, std::enable_if_t<is_stored_const_ref_v<T>, int> = 0>
         [[nodiscard]] operator const T&() const noexcept
         {
             return std::get<T>(entry);
@@ -138,22 +132,22 @@ namespace dot
         template<typename T>
         [[nodiscard]] operator T() const noexcept
         {
-            static_assert(check_convertible_type<T>(), "please only use values that can convert to: double, long, std::string");
+            static_assert(is_convertible_type_v<T>, "please only use types convertible to: double, long or std::string");
             return static_cast<T>(std::get<type_converter_t<T>>(entry));
         }
 
-        template<typename T>
+        template<typename T, std::enable_if_t<is_stored_type_v<T> or std::is_same_v<T, ini_tuple_element>, int> = 0>
         [[nodiscard]] operator const std::vector<T>&() const noexcept
         {
-            static_assert(check_exact_type<T>() or std::is_same_v<T, ini_tuple_element>, "please only use vectors that consist of: double, long, std::string");
             return std::get<std::vector<T>>(entry);
         }
 
         template<typename T>
         [[nodiscard]] operator std::vector<T>() const noexcept
         {
-            static_assert(check_exact_type<T>(), "please only use vectors that consist of: double, long, std::string");
-            return std::get<std::vector<T>>(entry);
+            static_assert(is_convertible_type_v<T>, "please only use types convertible to: double, long or std::string");
+            const auto& vec = std::get<std::vector<type_converter_t<T>>>(entry);
+            return std::vector<T>(vec.begin(), vec.end());
         }
 
         template<typename... Ts>
@@ -201,7 +195,7 @@ namespace dot
             using Type = std::decay_t<std::tuple_element_t<I, typename std::tuple<Types...>>>;
             auto&& elem = std::get<I>(std::tuple(types...));
 
-            if constexpr(check_convertible_type<Type>()) vec[I] = static_cast<type_converter_t<Type>>(elem);
+            if constexpr(is_convertible_type_v<Type>()) vec[I] = static_cast<type_converter_t<Type>>(elem);
             else static_assert(false_type<Type>::value, "type for tuple not supported");
 
             if constexpr (I+1 == sizeof...(Types)) return;
@@ -213,7 +207,7 @@ namespace dot
         {
             using Type = std::decay_t<std::tuple_element_t<I, typename std::tuple<Types...>>>;
 
-            if constexpr(check_convertible_type<Type>()) std::get<I>(tuple) = std::get<type_converter_t<Type>>(vec[I]);
+            if constexpr(is_convertible_type_v<Type>()) std::get<I>(tuple) = std::get<type_converter_t<Type>>(vec[I]);
             else static_assert(false_type<Type>::value, "type for tuple not supported");
 
             if constexpr (I+1 == sizeof...(Types)) return;
@@ -232,7 +226,7 @@ namespace dot
         template<typename... Types>
         explicit entry(Types&&... types) : variable(std::forward<Types>(types)...) {}
 
-        [[nodiscard]] auto index() const noexcept
+        [[nodiscard]] constexpr size_t index() const noexcept
         {
             return variable.index();
         }
@@ -392,6 +386,17 @@ namespace dot
             throw std::runtime_error("internal error 0");
         }
 
+//        template<typename T, size_t I = 0>
+//        static T& print(T& stream, const entry& entry)
+//        {
+//            if constexpr (I == 0 or I == std::variant_size_v<inivariable::ini_element>) return stream;
+//            else
+//            {
+//                if(I == entry.index()) return print(stream, static_cast<const std::variant_alternative_t<I, inivariable::ini_element>&>(entry.value()));
+//                else return print<T, I+1>(stream, entry);
+//            }
+//        }
+
         template<typename T>
         static T& print(T& stream, const std::string& name, const section& section)
         {
@@ -428,7 +433,7 @@ namespace dot
         [[nodiscard]] auto size() const noexcept { return map.size(); }
 
         template<typename T>
-        friend T& operator<<(T& stream, const dot::settings& settings)
+        friend T& operator<<(T& stream, const settings& settings)
         {
             for(const auto& section_data : settings)
             {
